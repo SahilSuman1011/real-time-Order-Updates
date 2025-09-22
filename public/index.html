@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-time Order Updates</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 1rem;
+            font-weight: 600;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.connected {
+            background-color: #10b981;
+        }
+
+        .status-indicator.disconnected {
+            background-color: #ef4444;
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            padding: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .section {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+        }
+
+        .section-header {
+            background: #f8fafc;
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid #e2e8f0;
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        .section-content {
+            padding: 1.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #374151;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn.btn-danger {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        }
+
+        .btn.btn-warning {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        }
+
+        .orders-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .order-item {
+            padding: 1rem;
+            border-bottom: 1px solid #f1f5f9;
+            transition: background-color 0.2s;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .order-item:last-child {
+            border-bottom: none;
+        }
+
+        .order-item:hover {
+            background-color: #f8fafc;
+        }
+
+        .order-item.new {
+            background-color: #ecfdf5;
+            border-left: 4px solid #10b981;
+        }
+
+        .order-item.updated {
+            background-color: #fef3c7;
+            border-left: 4px solid #f59e0b;
+        }
+
+        .order-item.deleted {
+            background-color: #fef2f2;
+            border-left: 4px solid #ef4444;
+            opacity: 0.7;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .order-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .order-id {
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        .order-status {
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .order-status.pending {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+
+        .order-status.shipped {
+            background-color: #dbeafe;
+            color: #1e40af;
+        }
+
+        .order-status.delivered {
+            background-color: #dcfce7;
+            color: #166534;
+        }
+
+        .order-details {
+            color: #6b7280;
+            font-size: 0.9rem;
+        }
+
+        .order-meta {
+            margin-top: 0.5rem;
+            font-size: 0.8rem;
+            color: #9ca3af;
+        }
+
+        .activity-log {
+            max-height: 300px;
+            overflow-y: auto;
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 1rem;
+        }
+
+        .activity-item {
+            padding: 0.5rem;
+            margin-bottom: 0.5rem;
+            background: white;
+            border-radius: 6px;
+            border-left: 3px solid #e5e7eb;
+            font-size: 0.85rem;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .activity-item.insert {
+            border-left-color: #10b981;
+        }
+
+        .activity-item.update {
+            border-left-color: #f59e0b;
+        }
+
+        .activity-item.delete {
+            border-left-color: #ef4444;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .activity-time {
+            color: #9ca3af;
+            font-size: 0.75rem;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+        }
+
+        .stat-number {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: #64748b;
+            text-transform: uppercase;
+            margin-top: 0.25rem;
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #10b981;
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            transform: translateX(400px);
+            transition: transform 0.3s ease-out;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        .toast.error {
+            background: #ef4444;
+        }
+
+        .toast.warning {
+            background: #f59e0b;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Real-time Order Updates</h1>
+            <p>Live database changes with WebSocket technology</p>
+            <div class="status">
+                <div class="status-indicator" id="statusIndicator"></div>
+                <span id="statusText">Connecting...</span>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="section">
+                <div class="section-header">📝 Create New Order</div>
+                <div class="section-content">
+                    <form id="orderForm">
+                        <div class="form-group">
+                            <label for="customerName">Customer Name</label>
+                            <input type="text" id="customerName" name="customer_name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="productName">Product Name</label>
+                            <input type="text" id="productName" name="product_name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="status">Status</label>
+                            <select id="status" name="status">
+                                <option value="pending">Pending</option>
+                                <option value="shipped">Shipped</option>
+                                <option value="delivered">Delivered</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn">Create Order</button>
+                    </form>
+
+                    <div class="stats" id="stats">
+                        <div class="stat-card">
+                            <div class="stat-number" id="totalOrders">0</div>
+                            <div class="stat-label">Total Orders</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="pendingOrders">0</div>
+                            <div class="stat-label">Pending</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="connectedClients">0</div>
+                            <div class="stat-label">Clients</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-header">📦 Live Orders</div>
+                <div class="section-content">
+                    <div class="orders-list" id="ordersList">
+                        <div style="text-align: center; color: #9ca3af; padding: 2rem;">
+                            Loading orders...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            </div>
+            
+            <div class="section" style="margin: 2rem;">
+                <div class="section-header">⚡ Real-time Activity</div>
+                <div class="section-content">
+                <div class="activity-log" id="activityLog">
+                    <div style="text-align: center; color: #9ca3af;">
+                    Waiting for database changes...
+                    </div>
+                </div>
+                </div>
+            </div>
+        
+
+    <script>
+        // Socket.io connection
+        const socket = io();
+        let orders = [];
+        let activityItems = [];
+
+        // DOM elements
+        const statusIndicator = document.getElementById('statusIndicator');
+        const statusText = document.getElementById('statusText');
+        const orderForm = document.getElementById('orderForm');
+        const ordersList = document.getElementById('ordersList');
+        const activityLog = document.getElementById('activityLog');
+
+        // Socket event handlers
+        socket.on('connect', () => {
+            updateStatus('connected', 'Connected');
+            showToast('Connected to server!', 'success');
+            loadInitialData();
+        });
+
+        socket.on('disconnect', () => {
+            updateStatus('disconnected', 'Disconnected');
+            showToast('Connection lost. Reconnecting...', 'error');
+        });
+
+        socket.on('welcome', (data) => {
+            console.log('Welcome message:', data);
+            document.getElementById('connectedClients').textContent = data.totalClients;
+        });
+
+        // Database change handlers
+        socket.on('orders:insert', (data) => {
+            handleDatabaseChange('insert', data);
+            addOrder(data.data);
+            showToast(`New order created: ${data.data.customer_name}`, 'success');
+        });
+
+        socket.on('orders:update', (data) => {
+            handleDatabaseChange('update', data);
+            updateOrder(data.data);
+            showToast(`Order updated: #${data.data.id}`, 'warning');
+        });
+
+        socket.on('orders:delete', (data) => {
+            handleDatabaseChange('delete', data);
+            removeOrder(data.data.id);
+            showToast(`Order deleted: #${data.data.id}`, 'error');
+        });
+
+        // Utility functions
+        function updateStatus(status, text) {
+            statusIndicator.className = `status-indicator ${status}`;
+            statusText.textContent = text;
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => toast.classList.add('show'), 100);
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => document.body.removeChild(toast), 300);
+            }, 3000);
+        }
+
+        function handleDatabaseChange(operation, data) {
+            const activity = {
+                operation,
+                data: data.data,
+                timestamp: new Date(data.serverTime),
+                id: Date.now() + Math.random()
+            };
+            
+            activityItems.unshift(activity);
+            if (activityItems.length > 50) {
+                activityItems = activityItems.slice(0, 50);
+            }
+            
+            renderActivity();
+        }
+
+        // Order management functions
+        function addOrder(order) {
+            // Check if order already exists
+            const existingIndex = orders.findIndex(o => o.id === order.id);
+            if (existingIndex === -1) {
+                orders.unshift(order);
+            }
+            renderOrders();
+            updateStats();
+        }
+
+        function updateOrder(updatedOrder) {
+            const index = orders.findIndex(o => o.id === updatedOrder.id);
+            if (index !== -1) {
+                orders[index] = updatedOrder;
+                renderOrders();
+                updateStats();
+            }
+        }
+
+        function removeOrder(orderId) {
+            orders = orders.filter(o => o.id !== orderId);
+            renderOrders();
+            updateStats();
+        }
+
+        // Rendering functions
+        function renderOrders() {
+            if (orders.length === 0) {
+                ordersList.innerHTML = `
+                    <div style="text-align: center; color: #9ca3af; padding: 2rem;">
+                        No orders found
+                    </div>
+                `;
+                return;
+            }
+
+            ordersList.innerHTML = orders.map(order => `
+                <div class="order-item" data-order-id="${order.id}">
+                    <div class="order-header">
+                        <span class="order-id">Order #${order.id}</span>
+                        <span class="order-status ${order.status}">${order.status}</span>
+                    </div>
+                    <div class="order-details">
+                        <strong>${order.customer_name}</strong> - ${order.product_name}
+                    </div>
+                    <div class="order-meta">
+                        Updated: ${new Date(order.updated_at).toLocaleString()}
+                    </div>
+                    <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem;">
+                        <button class="btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; width: auto;" 
+                                onclick="updateOrderStatus(${order.id}, 'shipped')">Ship</button>
+                        <button class="btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; width: auto;" 
+                                onclick="updateOrderStatus(${order.id}, 'delivered')">Deliver</button>
+                        <button class="btn btn-danger" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; width: auto;" 
+                                onclick="deleteOrder(${order.id})">Delete</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderActivity() {
+            if (activityItems.length === 0) {
+                activityLog.innerHTML = `
+                    <div style="text-align: center; color: #9ca3af;">
+                        No activity yet
+                    </div>
+                `;
+                return;
+            }
+
+            activityLog.innerHTML = activityItems.map(item => `
+                <div class="activity-item ${item.operation}">
+                    <div>
+                        <strong>${item.operation.toUpperCase()}</strong> Order #${item.data.id}
+                        ${item.data.customer_name ? `- ${item.data.customer_name}` : ''}
+                    </div>
+                    <div class="activity-time">
+                        ${item.timestamp.toLocaleTimeString()}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateStats() {
+            const total = orders.length;
+            const pending = orders.filter(o => o.status === 'pending').length;
+            
+            document.getElementById('totalOrders').textContent = total;
+            document.getElementById('pendingOrders').textContent = pending;
+        }
+
+        // API functions
+        async function loadInitialData() {
+            try {
+                const response = await fetch('/api/orders');
+                const result = await response.json();
+                
+                if (result.success) {
+                    orders = result.data;
+                    renderOrders();
+                    updateStats();
+                }
+            } catch (err) {
+                console.error('Error loading orders:', err);
+                showToast('Failed to load orders', 'error');
+            }
+        }
+
+        async function createOrder(orderData) {
+            try {
+                const response = await fetch('/api/orders', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(orderData)
+                });
+                
+                const result = await response.json();
+                if (!result.success) {
+                    throw new Error(result.error);
+                }
+                
+                return result;
+            } catch (err) {
+                console.error('Error creating order:', err);
+                showToast(`Failed to create order: ${err.message}`, 'error');
+                throw err;
+            }
+        }
+
+        async function updateOrderStatus(orderId, status) {
+            try {
+                const response = await fetch(`/api/orders/${orderId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ status })
+                });
+                
+                const result = await response.json();
+                if (!result.success) {
+                    throw new Error(result.error);
+                }
+            } catch (err) {
+                console.error('Error updating order:', err);
+                showToast(`Failed to update order: ${err.message}`, 'error');
+            }
+        }
+
+        async function deleteOrder(orderId) {
+            if (!confirm('Are you sure you want to delete this order?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/orders/${orderId}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                if (!result.success) {
+                    throw new Error(result.error);
+                }
+            } catch (err) {
+                console.error('Error deleting order:', err);
+                showToast(`Failed to delete order: ${err.message}`, 'error');
+            }
+        }
+
+        // Event handlers
+        orderForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const orderData = Object.fromEntries(formData.entries());
+            
+            try {
+                await createOrder(orderData);
+                e.target.reset();
+            } catch (err) {
+                // Error already handled in createOrder function
+            }
+        });
+
+        // Auto-refresh connection status
+        setInterval(() => {
+            if (socket.connected) {
+                socket.emit('ping', (response) => {
+                    // Connection is healthy
+                });
+            }
+        }, 30000);
+
+        // Initialize the application
+        window.addEventListener('load', () => {
+            console.log('Real-time Order System initialized');
+        });
+    </script>
+</body>
+</html>
