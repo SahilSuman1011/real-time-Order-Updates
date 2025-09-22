@@ -483,7 +483,7 @@ curl -X POST http://localhost:3001/api/orders \
 
 ```bash
 # Clone repository
-git clone <repository-url>
+git clone <https://github.com/SahilSuman1011/real-time-Order-Updates>
 cd realtime-db-updates
 
 # Install dependencies
