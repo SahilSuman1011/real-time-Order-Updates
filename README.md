@@ -2,7 +2,7 @@
 
 A production-ready real-time system that automatically pushes database changes to connected clients using WebSockets, without polling. Built with Node.js, PostgreSQL, and Socket.io.
 
-![System Demo](https://via.placeholder.com/800x400/667eea/ffffff?text=Real-time+Database+Updates+System)
+![System Demo](![User Interface](image.png))
 
 ## ✨ Features
 
