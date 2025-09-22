@@ -95,29 +95,33 @@ npm install --save-dev nodemon
 
 ### 3. Project Structure
 
+### 3. Project Structure
+
+```
 realtime-db-updates/
-├── src/
-│   ├── config/
-│   │   └── database.js
-│   ├── services/
-│   │   ├── dbListener.js
-│   │   └── websocketHandler.js
-│   ├── controllers/
-│   │   └── ordersController.js
-│   ├── routes/
-│   │   └── orders.js
-│   └── server.js
-├── database/
-│   └── schema.sql
-├── clients/
-│   ├── cli-client.js
-│   └── test-client.js
-├── public/
-│   └── index.html
-├── package.json
-├── .env
-├── .env.example
-└── README.md
+├── src/                     # Source code directory
+│   ├── config/             # Configuration files
+│   │   └── database.js     # Database connection settings
+│   ├── services/           # Business logic layer
+│   │   ├── dbListener.js   # PostgreSQL NOTIFY/LISTEN handler
+│   │   └── websocket.js    # WebSocket event handlers
+│   ├── controllers/        # Request handlers
+│   │   └── orders.js      # Order operations logic
+│   ├── routes/            # API routes
+│   │   └── orders.js      # Order endpoints
+│   └── server.js          # Main application entry
+├── database/              # Database related files
+│   └── schema.sql        # Table definitions and triggers
+├── clients/              # Client applications
+│   ├── cli-client.js     # Command line interface
+│   └── test-client.js    # Automated testing client
+├── public/               # Static web assets
+│   └── index.html       # Web interface
+├── package.json         # Project dependencies
+├── .env                # Environment variables
+├── .env.example        # Environment template
+└── README.md          # Project documentation
+```
 
 ## 🗄️ Database Setup
 
